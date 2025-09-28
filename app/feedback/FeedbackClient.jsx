@@ -252,8 +252,12 @@ export default function FeedbackClient() {
             defaultValue=""
             placeholder="Tu número de celular"
             autoComplete="tel"
-            inputMode="tel"
-            pattern="[0-9+ ]*"
+            inputMode="numeric"     // teclado numérico en móvil
+            pattern="\d*"           // pista para validación
+            maxLength={15}
+            onInput={(e) => {       // fuerza solo dígitos
+              e.currentTarget.value = e.currentTarget.value.replace(/\D+/g, '');
+            }}
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
           {!phoneOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Escribe un celular válido.</p>}
