@@ -1,3 +1,5 @@
+const buildStampRef = useRef(new Date().toISOString()); // estable en toda la sesión
+
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 
