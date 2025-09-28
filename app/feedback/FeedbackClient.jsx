@@ -8,7 +8,7 @@ const WAIT = ['< 5 min','5–10 min','10–20 min','> 20 min'];
 const TRAMITE = ['Compra','Pago','Garantía','Consulta'];
 
 export default function FeedbackClient() {
-  // State mínimo
+  // State mínimo (selecciones)
   const [store, setStore] = useState('');
   const [rating, setRating] = useState(0);         // ★ obligatorio
   const [nps, setNps] = useState(null);            // 0–10 obligatorio
@@ -16,19 +16,17 @@ export default function FeedbackClient() {
   const [waitTime, setWaitTime] = useState('');    // obligatorio
   const [tramite, setTramite] = useState('');      // obligatorio
   const [resolved, setResolved] = useState(null);  // true/false obligatorio
+
+  // State de textos (controlados, sin transformaciones agresivas)
+  const [name, setName] = useState('');            // obligatorio
+  const [phone, setPhone] = useState('');          // obligatorio (solo números)
+  const [staff, setStaff] = useState('');          // obligatorio
+  const [comment, setComment] = useState('');      // obligatorio
+
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(null);
 
-  // Notificador para inputs por ref (fuerza re-render al escribir)
-  const [refBump, setRefBump] = useState(0);
-  const bump = () => setRefBump(v => v + 1);
-
-  // Refs (inputs no controlados → no salta el cursor)
-  const nameRef    = useRef(null);
-  const phoneRef   = useRef(null);
-  const staffRef   = useRef(null);
-  const commentRef = useRef(null);
-  const buildStampRef = useRef(new Date().toISOString());
+  const buildStampRef = useRef(new Date().toISOString()); // etiqueta estable
 
   // Cargar tienda desde ?store=
   useEffect(() => {
@@ -36,46 +34,34 @@ export default function FeedbackClient() {
     setStore(u.searchParams.get('store') || '');
   }, []);
 
-  // Validadores rápidos
-  const phoneVal = () => ((phoneRef.current?.value || '').replace(/\D+/g,'').length >= 7);
-  const nameVal  = () => ((nameRef.current?.value  || '').trim().length > 0);
-  const staffVal = () => ((staffRef.current?.value || '').trim().length > 0);
-  const commVal  = () => ((commentRef.current?.value || '').trim().length > 0);
+  // Validadores
+  const phoneOk = phone.replace(/\D+/g,'').length >= 7;
+  const canSubmit = useMemo(() => (
+    store &&
+    rating >= 1 && rating <= 5 &&
+    nps !== null && nps >= 0 && nps <= 10 &&
+    Array.isArray(tags) && tags.length >= 1 &&
+    WAIT.includes(waitTime) &&
+    TRAMITE.includes(tramite) &&
+    typeof resolved === 'boolean' &&
+    name.trim().length > 0 &&
+    phoneOk &&
+    staff.trim().length > 0 &&
+    comment.trim().length > 0
+  ), [store, rating, nps, tags, waitTime, tramite, resolved, name, phoneOk, staff, comment]);
 
-  // Qué falta (sin renderizar mensajes)
-  const missingReasons = () => {
-    const m = [];
-    if (!store) m.push('tienda (?store=...)');
-    if (!(rating >= 1 && rating <= 5)) m.push('calificación');
-    if (!(nps !== null && nps >= 0 && nps <= 10)) m.push('NPS');
-    if (!(Array.isArray(tags) && tags.length >= 1)) m.push('motivo(s)');
-    if (!WAIT.includes(waitTime)) m.push('tiempo de espera');
-    if (!TRAMITE.includes(tramite)) m.push('tipo de trámite');
-    if (typeof resolved !== 'boolean') m.push('¿se resolvió?');
-    if (!staffVal()) m.push('asesor');
-    if (!nameVal()) m.push('nombre');
-    if (!phoneVal()) m.push('celular (solo números, min 7)');
-    if (!commVal()) m.push('comentario');
-    return m;
+  // Handlers de texto (simples; no mueven el cursor)
+  const onPhoneChange = (e) => {
+    // Solo números (no hacemos nada con la selección; React mantiene el caret)
+    const digits = e.target.value.replace(/\D+/g,'');
+    setPhone(digits);
   };
-
-  const reasons = missingReasons();
-
-  // Botón habilitado cuando no falta nada (incluye refBump para recalcular al teclear)
-  const canSubmit = useMemo(() => reasons.length === 0, [
-    store, rating, nps, tags, waitTime, tramite, resolved, refBump
-  ]);
 
   // Envío
   const submit = async () => {
     if (!canSubmit) return;
     setLoading(true); setOk(null);
     try {
-      const name    = (nameRef.current?.value || '').trim();
-      const phone   = (phoneRef.current?.value || '').replace(/\D+/g,'').trim();
-      const staff   = (staffRef.current?.value || '').trim();
-      const comment = (commentRef.current?.value || '').trim();
-
       const payload = {
         store_id: store,
         submitted_at: new Date().toISOString(),
@@ -83,12 +69,12 @@ export default function FeedbackClient() {
         nps_score: nps,
         category_tags: tags,
         wait_time: waitTime,
-        staff_name: staff,
+        staff_name: staff.trim(),
         procedure_type: tramite,
         issue_resolved: resolved,
-        customer_name: name,
-        contact: phone,
-        comment,
+        customer_name: name.trim(),
+        contact: phone.replace(/\D+/g,'').trim(),
+        comment: comment.trim(),
       };
 
       const resp = await fetch('/api/review', {
@@ -100,27 +86,24 @@ export default function FeedbackClient() {
       setOk(resp.ok);
 
       if (resp.ok) {
-        // Limpieza mínima
+        // Limpieza
         setRating(0); setNps(null); setTags([]);
         setWaitTime(''); setTramite(''); setResolved(null);
-        if (nameRef.current)    nameRef.current.value    = '';
-        if (phoneRef.current)   phoneRef.current.value   = '';
-        if (staffRef.current)   staffRef.current.value   = '';
-        if (commentRef.current) commentRef.current.value = '';
-        bump(); // recalcular canSubmit tras limpiar
+        setName(''); setPhone(''); setStaff(''); setComment('');
         alert('¡Enviado!');
       } else {
         const txt = await resp.text();
         alert(`Error al enviar (${resp.status}). ${txt.slice(0,200)}`);
       }
-    } catch (e) {
+    } catch {
       alert('Ocurrió un error de red al enviar.');
+      setOk(false);
     } finally {
       setLoading(false);
     }
   };
 
-  // Helpers UI
+  // UI helpers
   const Section = ({ title, children }) => (
     <section style={{ marginTop: 20 }}>
       <p style={{ margin: '0 0 8px', fontWeight: 600 }}>{title}</p>
@@ -169,8 +152,11 @@ export default function FeedbackClient() {
       type="button"
       onClick={() => setNps(v)}
       style={{
-        width:36, height:36, borderRadius:8, border:'1px solid #d1d5db',
-        background: nps===v ? '#111':'#fff', color: nps===v ? '#fff':'#111', cursor:'pointer'
+        width:36, height:36, borderRadius:8,
+        border:'1px solid #d1d5db',
+        background: nps===v ? '#111':'#fff',
+        color: nps===v ? '#fff':'#111',
+        cursor:'pointer'
       }}
       aria-pressed={nps===v}
     >
@@ -235,12 +221,11 @@ export default function FeedbackClient() {
 
       <Section title="¿Quién te atendió?">
         <input
-          ref={staffRef}
           type="text"
-          defaultValue=""
           placeholder="Nombre del asesor"
           autoComplete="organization-title"
-          onInput={bump}
+          value={staff}
+          onChange={(e)=>setStaff(e.target.value)}
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
       </Section>
@@ -248,24 +233,22 @@ export default function FeedbackClient() {
       <Section title="Tus datos">
         <div style={{ display:'grid', gap:10 }}>
           <input
-            ref={nameRef}
             type="text"
-            defaultValue=""
             placeholder="Tu nombre"
             autoComplete="name"
-            onInput={bump}
+            value={name}
+            onChange={(e)=>setName(e.target.value)}
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
           <input
-            ref={phoneRef}
             type="tel"
-            defaultValue=""
             placeholder="Tu número de celular"
             autoComplete="tel"
             inputMode="numeric"
             pattern="\d*"
             maxLength={15}
-            onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D+/g, ''); bump(); }}
+            value={phone}
+            onChange={onPhoneChange}
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
         </div>
@@ -273,11 +256,10 @@ export default function FeedbackClient() {
 
       <Section title="Cuéntanos">
         <textarea
-          ref={commentRef}
           rows={4}
-          defaultValue=""
           placeholder="¿Qué estuvo excelente o qué mejorar?"
-          onInput={bump}
+          value={comment}
+          onChange={(e)=>setComment(e.target.value)}
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
       </Section>
@@ -286,7 +268,6 @@ export default function FeedbackClient() {
         type="button"
         onClick={submit}
         disabled={!canSubmit || loading}
-        title={!canSubmit ? `Falta: ${reasons.join(', ')}` : ''}
         aria-busy={loading ? 'true' : 'false'}
         style={{
           marginTop:22, width:'100%', padding:14, borderRadius:12, border:'1px solid #0b6b8e',
@@ -294,11 +275,11 @@ export default function FeedbackClient() {
           color:'#001', fontWeight:800, cursor: (!canSubmit || loading) ? 'not-allowed' : 'pointer'
         }}
       >
-        {loading ? 'Enviando…' : (!canSubmit ? `Completa: ${reasons[0] || 'faltan campos'}` : 'Enviar')}
+        {loading ? 'Enviando…' : 'Enviar'}
       </button>
 
       <p style={{ marginTop:12, fontSize:12, color:'#888' }}>
-        build: feedback-required — {buildStampRef.current}
+        build: feedback-stable — {buildStampRef.current}
       </p>
 
       {ok === true  && <p style={{ color:'#15803d', marginTop:8 }}>¡Gracias! Recibimos tu review.</p>}
@@ -306,4 +287,5 @@ export default function FeedbackClient() {
     </main>
   );
 }
+
 
