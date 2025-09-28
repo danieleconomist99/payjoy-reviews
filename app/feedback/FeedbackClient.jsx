@@ -166,6 +166,45 @@ export default function FeedbackClient() {
   );
 
   // RENDER
+
+
+    // --- DIAGNÓSTICO: qué falta exactamente ---
+  const phoneVal = () => ((phoneRef.current?.value || '').replace(/\D+/g,'').length >= 7);
+  const nameVal  = () => ((nameRef.current?.value  || '').trim().length > 0);
+  const staffVal = () => ((staffRef.current?.value || '').trim().length > 0);
+  const commVal  = () => ((commentRef.current?.value || '').trim().length > 0);
+  
+  const missingReasons = () => {
+    const m = [];
+    if (!store) m.push('tienda (?store=...)');
+    if (!(rating >= 1 && rating <= 5)) m.push('calificación');
+    if (!(nps !== null && nps >= 0 && nps <= 10)) m.push('NPS');
+    if (!(Array.isArray(tags) && tags.length >= 1)) m.push('motivo(s)');
+    if (!WAIT.includes(waitTime)) m.push('tiempo de espera');
+    if (!TRAMITE.includes(tramite)) m.push('tipo de trámite');
+    if (typeof resolved !== 'boolean') m.push('¿se resolvió?');
+    if (!staffVal()) m.push('asesor');
+    if (!nameVal()) m.push('nombre');
+    if (!phoneVal()) m.push('celular (solo números, min 7)');
+    if (!commVal()) m.push('comentario');
+    return m;
+  };
+  
+  const reasons = missingReasons();
+  const canSubmit = reasons.length === 0;
+  
+  // Log en consola en cada cambio relevante
+  useEffect(() => {
+    console.log('DEBUG form state →', {
+      store, rating, nps, tags, waitTime, tramite, resolved,
+      name: nameRef.current?.value, phone: phoneRef.current?.value,
+      staff: staffRef.current?.value, comment: commentRef.current?.value,
+      reasons
+    });
+  }, [store, rating, nps, tags, waitTime, tramite, resolved]);
+
+
+  
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>Cuéntanos tu experiencia</h1>
@@ -274,9 +313,10 @@ export default function FeedbackClient() {
         />
       </Section>
       <button
-        type="button"                 // ← evita comportamiento de <form>
-        onClick={submit}              // ← dispara el handler
+        type="button"
+        onClick={submit}
         disabled={!canSubmit || loading}
+        title={!canSubmit ? `Falta: ${reasons.join(', ')}` : ''}
         aria-busy={loading ? 'true' : 'false'}
         style={{
           marginTop:22, width:'100%', padding:14, borderRadius:12, border:'1px solid #0b6b8e',
@@ -284,8 +324,9 @@ export default function FeedbackClient() {
           color:'#001', fontWeight:800, cursor: (!canSubmit || loading) ? 'not-allowed' : 'pointer'
         }}
       >
-        {loading ? 'Enviando…' : 'Enviar'}
+        {loading ? 'Enviando…' : (!canSubmit ? `Completa: ${reasons[0] || 'faltan campos'}` : 'Enviar')}
       </button>
+
 
 
       <p style={{ marginTop:12, fontSize:12, color:'#888' }}>
