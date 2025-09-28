@@ -245,7 +245,6 @@ export default function FeedbackClient() {
             autoComplete="name"
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
-          {!nameOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Escribe tu nombre.</p>}
 
           <input
             ref={phoneRef}
