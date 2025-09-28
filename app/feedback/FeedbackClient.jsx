@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // Constantes
 const TAGS = ['espera','pago','precio','atención','garantía','disponibilidad','otro'];
@@ -8,25 +8,23 @@ const WAIT = ['< 5 min','5–10 min','10–20 min','> 20 min'];
 const TRAMITE = ['Compra','Pago','Garantía','Consulta'];
 
 export default function FeedbackClient() {
-  // State mínimo (selecciones)
+  // Solo selecciones en estado (no textos)
   const [store, setStore] = useState('');
-  const [rating, setRating] = useState(0);         // ★ obligatorio
-  const [nps, setNps] = useState(null);            // 0–10 obligatorio
-  const [tags, setTags] = useState([]);            // >=1 obligatorio
-  const [waitTime, setWaitTime] = useState('');    // obligatorio
-  const [tramite, setTramite] = useState('');      // obligatorio
-  const [resolved, setResolved] = useState(null);  // true/false obligatorio
-
-  // State de textos (controlados, sin transformaciones agresivas)
-  const [name, setName] = useState('');            // obligatorio
-  const [phone, setPhone] = useState('');          // obligatorio (solo números)
-  const [staff, setStaff] = useState('');          // obligatorio
-  const [comment, setComment] = useState('');      // obligatorio
-
+  const [rating, setRating] = useState(0);
+  const [nps, setNps] = useState(null);
+  const [tags, setTags] = useState([]);
+  const [waitTime, setWaitTime] = useState('');
+  const [tramite, setTramite] = useState('');
+  const [resolved, setResolved] = useState(null);
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(null);
 
-  const buildStampRef = useRef(new Date().toISOString()); // etiqueta estable
+  // Textos NO controlados → no pierden el cursor
+  const nameRef    = useRef(null);
+  const phoneRef   = useRef(null);
+  const staffRef   = useRef(null);
+  const commentRef = useRef(null);
+  const buildStampRef = useRef(new Date().toISOString());
 
   // Cargar tienda desde ?store=
   useEffect(() => {
@@ -34,32 +32,42 @@ export default function FeedbackClient() {
     setStore(u.searchParams.get('store') || '');
   }, []);
 
-  // Validadores
-  const phoneOk = phone.replace(/\D+/g,'').length >= 7;
-  const canSubmit = useMemo(() => (
-    store &&
-    rating >= 1 && rating <= 5 &&
-    nps !== null && nps >= 0 && nps <= 10 &&
-    Array.isArray(tags) && tags.length >= 1 &&
-    WAIT.includes(waitTime) &&
-    TRAMITE.includes(tramite) &&
-    typeof resolved === 'boolean' &&
-    name.trim().length > 0 &&
-    phoneOk &&
-    staff.trim().length > 0 &&
-    comment.trim().length > 0
-  ), [store, rating, nps, tags, waitTime, tramite, resolved, name, phoneOk, staff, comment]);
-
-  // Handlers de texto (simples; no mueven el cursor)
-  const onPhoneChange = (e) => {
-    // Solo números (no hacemos nada con la selección; React mantiene el caret)
-    const digits = e.target.value.replace(/\D+/g,'');
-    setPhone(digits);
+  // Validadores simples
+  const phoneDigits = () => (phoneRef.current?.value || '').replace(/\D+/g,'');
+  const missingReasons = () => {
+    const m = [];
+    if (!store) m.push({key:'store',    label:'tienda (?store=...)'});
+    if (!(rating >= 1 && rating <= 5))       m.push({key:'rating',   label:'calificación'});
+    if (!(nps !== null && nps >= 0 && nps <= 10)) m.push({key:'nps', label:'NPS (0–10)'});
+    if (!(Array.isArray(tags) && tags.length >= 1)) m.push({key:'tags', label:'motivo(s)'});
+    if (!WAIT.includes(waitTime))            m.push({key:'wait',     label:'tiempo de espera'});
+    if (!TRAMITE.includes(tramite))          m.push({key:'tramite',  label:'tipo de trámite'});
+    if (typeof resolved !== 'boolean')       m.push({key:'resolved', label:'¿se resolvió?'});
+    if (!(nameRef.current?.value || '').trim())    m.push({key:'name',  label:'nombre'});
+    if (phoneDigits().length < 7)            m.push({key:'phone',    label:'celular (≥7 dígitos)'});
+    if (!(staffRef.current?.value || '').trim())   m.push({key:'staff',  label:'asesor'});
+    if (!(commentRef.current?.value || '').trim()) m.push({key:'comment',label:'comentario'});
+    return m;
   };
 
-  // Envío
+  const focusFirstMissing = (list) => {
+    const first = list[0]?.key;
+    if (first === 'name')    nameRef.current?.focus();
+    if (first === 'phone')   phoneRef.current?.focus();
+    if (first === 'staff')   staffRef.current?.focus();
+    if (first === 'comment') commentRef.current?.focus();
+  };
+
+  // Envío (validación al enviar)
   const submit = async () => {
-    if (!canSubmit) return;
+    if (loading) return;
+    const miss = missingReasons();
+    if (miss.length > 0) {
+      alert('Falta: ' + miss.map(x => x.label).join(', '));
+      focusFirstMissing(miss);
+      return;
+    }
+
     setLoading(true); setOk(null);
     try {
       const payload = {
@@ -69,12 +77,12 @@ export default function FeedbackClient() {
         nps_score: nps,
         category_tags: tags,
         wait_time: waitTime,
-        staff_name: staff.trim(),
+        staff_name: (staffRef.current?.value || '').trim(),
         procedure_type: tramite,
         issue_resolved: resolved,
-        customer_name: name.trim(),
-        contact: phone.replace(/\D+/g,'').trim(),
-        comment: comment.trim(),
+        customer_name: (nameRef.current?.value || '').trim(),
+        contact: phoneDigits(),
+        comment: (commentRef.current?.value || '').trim(),
       };
 
       const resp = await fetch('/api/review', {
@@ -86,24 +94,27 @@ export default function FeedbackClient() {
       setOk(resp.ok);
 
       if (resp.ok) {
-        // Limpieza
+        // Limpieza de selecciones y textos
         setRating(0); setNps(null); setTags([]);
         setWaitTime(''); setTramite(''); setResolved(null);
-        setName(''); setPhone(''); setStaff(''); setComment('');
+        if (nameRef.current)    nameRef.current.value    = '';
+        if (phoneRef.current)   phoneRef.current.value   = '';
+        if (staffRef.current)   staffRef.current.value   = '';
+        if (commentRef.current) commentRef.current.value = '';
         alert('¡Enviado!');
       } else {
         const txt = await resp.text();
         alert(`Error al enviar (${resp.status}). ${txt.slice(0,200)}`);
       }
     } catch {
-      alert('Ocurrió un error de red al enviar.');
       setOk(false);
+      alert('Ocurrió un error de red al enviar.');
     } finally {
       setLoading(false);
     }
   };
 
-  // UI helpers
+  // Helpers UI
   const Section = ({ title, children }) => (
     <section style={{ marginTop: 20 }}>
       <p style={{ margin: '0 0 8px', fontWeight: 600 }}>{title}</p>
@@ -152,11 +163,8 @@ export default function FeedbackClient() {
       type="button"
       onClick={() => setNps(v)}
       style={{
-        width:36, height:36, borderRadius:8,
-        border:'1px solid #d1d5db',
-        background: nps===v ? '#111':'#fff',
-        color: nps===v ? '#fff':'#111',
-        cursor:'pointer'
+        width:36, height:36, borderRadius:8, border:'1px solid #d1d5db',
+        background: nps===v ? '#111':'#fff', color: nps===v ? '#fff':'#111', cursor:'pointer'
       }}
       aria-pressed={nps===v}
     >
@@ -221,11 +229,11 @@ export default function FeedbackClient() {
 
       <Section title="¿Quién te atendió?">
         <input
+          ref={staffRef}
           type="text"
+          defaultValue=""
           placeholder="Nombre del asesor"
           autoComplete="organization-title"
-          value={staff}
-          onChange={(e)=>setStaff(e.target.value)}
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
       </Section>
@@ -233,22 +241,23 @@ export default function FeedbackClient() {
       <Section title="Tus datos">
         <div style={{ display:'grid', gap:10 }}>
           <input
+            ref={nameRef}
             type="text"
+            defaultValue=""
             placeholder="Tu nombre"
             autoComplete="name"
-            value={name}
-            onChange={(e)=>setName(e.target.value)}
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
           <input
+            ref={phoneRef}
             type="tel"
+            defaultValue=""
             placeholder="Tu número de celular"
             autoComplete="tel"
             inputMode="numeric"
             pattern="\d*"
             maxLength={15}
-            value={phone}
-            onChange={onPhoneChange}
+            onInput={(e)=>{ e.currentTarget.value = e.currentTarget.value.replace(/\D+/g,''); }}
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
         </div>
@@ -256,10 +265,10 @@ export default function FeedbackClient() {
 
       <Section title="Cuéntanos">
         <textarea
+          ref={commentRef}
           rows={4}
+          defaultValue=""
           placeholder="¿Qué estuvo excelente o qué mejorar?"
-          value={comment}
-          onChange={(e)=>setComment(e.target.value)}
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
       </Section>
@@ -267,12 +276,11 @@ export default function FeedbackClient() {
       <button
         type="button"
         onClick={submit}
-        disabled={!canSubmit || loading}
         aria-busy={loading ? 'true' : 'false'}
         style={{
           marginTop:22, width:'100%', padding:14, borderRadius:12, border:'1px solid #0b6b8e',
-          background: (!canSubmit || loading) ? '#9ccfea' : '#0ea5e9',
-          color:'#001', fontWeight:800, cursor: (!canSubmit || loading) ? 'not-allowed' : 'pointer'
+          background: loading ? '#9ccfea' : '#0ea5e9',
+          color:'#001', fontWeight:800, cursor: loading ? 'wait' : 'pointer'
         }}
       >
         {loading ? 'Enviando…' : 'Enviar'}
@@ -287,5 +295,6 @@ export default function FeedbackClient() {
     </main>
   );
 }
+
 
 
