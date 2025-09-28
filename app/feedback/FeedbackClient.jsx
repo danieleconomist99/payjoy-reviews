@@ -13,12 +13,10 @@ export default function FeedbackClient() {
   const [nps, setNps] = useState(null);
   const [tags, setTags] = useState([]);
   const [waitTime, setWaitTime] = useState('');
-  const [staff, setStaff] = useState('');
   const [tramite, setTramite] = useState('');
   const [resolved, setResolved] = useState(null); // true/false
   const [wantFollow, setWantFollow] = useState(false);
   const [contact, setContact] = useState('');
-  const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(null);
 
@@ -99,6 +97,10 @@ export default function FeedbackClient() {
     </button>
   );
 
+  const commentRef = useRef(null);
+  const staffRef = useRef(null);
+
+
   const buildStampRef = useRef(new Date().toISOString());
   const textareaRef = useRef(null);
 
@@ -114,6 +116,59 @@ export default function FeedbackClient() {
       }
     });
   };
+
+    // 1) IMPORTS (arriba del archivo)
+  import { useEffect, useMemo, useRef, useState } from 'react';
+  
+  // 2) DENTRO DEL COMPONENTE FeedbackClient (después de tus useState/useRef)
+  const commentRef = useRef(null);
+  const staffRef = useRef(null);
+  
+  const submit = async () => {
+    setLoading(true); 
+    setOk(null);
+    try {
+      const comment = commentRef.current?.value?.trim() || '';
+      const staff = staffRef.current?.value?.trim() || '';
+  
+      const payload = {
+        store_id: store || 'CEN',
+        submitted_at: new Date().toISOString(),
+        rating,
+        nps_score: nps,
+        category_tags: tags,
+        wait_time: waitTime || undefined,
+        staff_name: staff || undefined,
+        procedure_type: tramite || undefined,
+        issue_resolved: typeof resolved === 'boolean' ? resolved : undefined,
+        wants_followup: wantFollow,
+        contact: contact || undefined,
+        comment,
+      };
+  
+      const res = await fetch('/api/review', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+  
+      setOk(res.ok);
+  
+      if (res.ok) {
+        // Limpieza
+        setRating(0); setNps(null); setTags([]); setWaitTime('');
+        setTramite(''); setResolved(null); setWantFollow(false); setContact('');
+        if (commentRef.current) commentRef.current.value = '';
+        if (staffRef.current) commentRef.current.value = ''; // <- ojo, esto limpia el textarea
+        if (staffRef.current)  staffRef.current.value = '';  // <- y esto limpia el input de staff
+      }
+    } catch {
+      setOk(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
 
 
   return (
@@ -164,12 +219,13 @@ export default function FeedbackClient() {
       <Section title="¿Quién te atendió? (opcional)">
         <input
           ref={staffRef}
-          value={staff}
-          onChange={onStaffChange}
+          type="text"
+          defaultValue=""
           placeholder="Nombre del asesor"
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
       </Section>
+
 
       <Section title="¿Deseas que te contactemos?">
         <label style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -181,17 +237,15 @@ export default function FeedbackClient() {
                  style={{ marginTop:10, width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}/>
         )}
       </Section>
-
+      
       <Section title="Cuéntanos (opcional):">
-      <textarea
-      ref={textareaRef}
-      rows={4}
-      value={comment}
-      onChange={onCommentChange}
-      placeholder="¿Qué estuvo excelente o qué mejorar?"
-      style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
-      />
-
+        <textarea
+          ref={commentRef}
+          rows={4}
+          defaultValue=""
+          placeholder="¿Qué estuvo excelente o qué mejorar?"
+          style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
+        />
       </Section>
 
       <button disabled={!canSubmit || loading} onClick={submit}
