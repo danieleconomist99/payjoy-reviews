@@ -1,50 +1,62 @@
-'use client'; // ← debe ser la PRIMERA línea
+'use client'; // ← primera línea
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-// Constantes fuera del componente
+// Constantes
 const TAGS = ['espera','pago','precio','atención','garantía','disponibilidad','otro'];
 const WAIT = ['< 5 min','5–10 min','10–20 min','> 20 min'];
 const TRAMITE = ['Compra','Pago','Garantía','Consulta'];
 
 export default function FeedbackClient() {
-  // ----- STATE (solo lo necesario) -----
+  // STATE mínimo
   const [store, setStore] = useState('');
-  const [rating, setRating] = useState(0);
-  const [nps, setNps] = useState(null);
-  const [tags, setTags] = useState([]);
-  const [waitTime, setWaitTime] = useState('');
-  const [tramite, setTramite] = useState('');
-  const [resolved, setResolved] = useState(null); // true/false
-  const [wantFollow, setWantFollow] = useState(false);
+  const [rating, setRating] = useState(0);                 // ★ obligatorio
+  const [nps, setNps] = useState(null);                    // 0–10 obligatorio
+  const [tags, setTags] = useState([]);                    // >=1 obligatorio
+  const [waitTime, setWaitTime] = useState('');            // obligatorio
+  const [tramite, setTramite] = useState('');              // obligatorio
+  const [resolved, setResolved] = useState(null);          // true/false obligatorio
   const [loading, setLoading] = useState(false);
   const [ok, setOk] = useState(null);
 
-  // ----- REFS (inputs NO controlados para evitar salto de cursor) -----
-  const nameRef    = useRef(null);
-  const phoneRef   = useRef(null);
-  const staffRef   = useRef(null);
-  const commentRef = useRef(null);
-  const buildStampRef = useRef(new Date().toISOString()); // etiqueta estable
+  // REFS (inputs no controlados → no saltan cursor)
+  const nameRef    = useRef(null);  // obligatorio
+  const phoneRef   = useRef(null);  // obligatorio
+  const staffRef   = useRef(null);  // obligatorio
+  const commentRef = useRef(null);  // obligatorio
+  const buildStampRef = useRef(new Date().toISOString());
 
-  // Leer ?store=CEN una sola vez
+  // Cargar tienda desde ?store=
   useEffect(() => {
     const u = new URL(window.location.href);
     setStore(u.searchParams.get('store') || '');
   }, []);
 
-  // Habilitar botón (si pide seguimiento, exige celular)
-  const canSubmit = useMemo(() => {
-    if (!(rating >= 1 && rating <= 5)) return false;
-    if (wantFollow) {
-      const phone = phoneRef.current?.value?.trim() || '';
-      if (phone.length < 5) return false;
-    }
-    return true;
-  }, [rating, wantFollow]);
+  // Validaciones (todas obligatorias)
+  const phoneOk = () => {
+    const v = (phoneRef.current?.value || '').trim();
+    return v.length >= 7; // regla simple; ajusta si quieres regex
+  };
+  const nameOk = () => (nameRef.current?.value || '').trim().length > 0;
+  const staffOk = () => (staffRef.current?.value || '').trim().length > 0;
+  const commentOk = () => (commentRef.current?.value || '').trim().length > 0;
 
-  // ----- SUBMIT -----
+  const canSubmit = useMemo(() => {
+    return (
+      store &&
+      rating >= 1 && rating <= 5 &&
+      nps !== null && nps >= 0 && nps <= 10 &&
+      Array.isArray(tags) && tags.length >= 1 &&
+      WAIT.includes(waitTime) &&
+      TRAMITE.includes(tramite) &&
+      typeof resolved === 'boolean' &&
+      nameOk() && phoneOk() && staffOk() && commentOk()
+    );
+  }, [store, rating, nps, tags, waitTime, tramite, resolved]);
+
+  // Envío
   const submit = async () => {
+    if (!canSubmit) return;
     setLoading(true);
     setOk(null);
     try {
@@ -54,34 +66,32 @@ export default function FeedbackClient() {
       const comment = commentRef.current?.value?.trim() || '';
 
       const payload = {
-        store_id: store || 'CEN',
+        store_id: store, // ya es obligatorio por URL; evita fallback 'CEN'
         submitted_at: new Date().toISOString(),
         rating,
-        nps_score: nps ?? undefined,
+        nps_score: nps,
         category_tags: tags,
-        wait_time: waitTime || undefined,
-        staff_name: staff || undefined,
-        procedure_type: tramite || undefined,
-        issue_resolved: typeof resolved === 'boolean' ? resolved : undefined,
-        wants_followup: wantFollow,
-        customer_name: name || undefined,        // ← nombre
-        contact: phone || undefined,             // ← celular
+        wait_time: waitTime,
+        staff_name: staff,
+        procedure_type: tramite,
+        issue_resolved: resolved,
+        customer_name: name,
+        contact: phone,
         comment,
       };
 
       const res = await fetch('/api/review', {
         method: 'POST',
-        headers: { 'content-type':'application/json' },
+        headers: { 'content-type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
       setOk(res.ok);
 
       if (res.ok) {
-        // Limpieza mínima sin re-montar inputs
+        // Limpieza mínima (si quisieras mantener datos, elimina estas líneas)
         setRating(0); setNps(null); setTags([]);
         setWaitTime(''); setTramite(''); setResolved(null);
-        setWantFollow(false);
         if (nameRef.current)    nameRef.current.value    = '';
         if (phoneRef.current)   phoneRef.current.value   = '';
         if (staffRef.current)   staffRef.current.value   = '';
@@ -94,7 +104,7 @@ export default function FeedbackClient() {
     }
   };
 
-  // ----- UI helpers -----
+  // Helpers UI
   const Section = ({ title, children }) => (
     <section style={{ marginTop: 20 }}>
       <p style={{ margin: '0 0 8px', fontWeight: 600 }}>{title}</p>
@@ -114,6 +124,7 @@ export default function FeedbackClient() {
         color: active ? '#fff' : '#111',
         cursor:'pointer'
       }}
+      aria-pressed={active}
     >
       {children}
     </button>
@@ -131,6 +142,7 @@ export default function FeedbackClient() {
         color: rating===n ? '#fff':'#111',
         cursor:'pointer'
       }}
+      aria-pressed={rating===n}
     >
       {n}★
     </button>
@@ -147,69 +159,78 @@ export default function FeedbackClient() {
         color: nps===v ? '#fff':'#111',
         cursor:'pointer'
       }}
+      aria-pressed={nps===v}
     >
       {v}
     </button>
   );
 
-  // ----- RENDER -----
+  // RENDER
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 20 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>¿Cómo te fue hoy?</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>Cuéntanos tu experiencia</h1>
       <p style={{ marginTop: 4, color: '#666' }}>
         Tienda: <strong>{store || '—'}</strong>
       </p>
 
-      <Section title="Calificación:">
+      <Section title="Calificación (obligatorio):">
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {[1,2,3,4,5].map(n => <Star key={n} n={n} />)}
         </div>
+        {!(rating >= 1) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona una calificación.</p>}
       </Section>
 
-      <Section title="¿Qué tan probable es que nos recomiendes? (0–10, opcional)">
+      <Section title="¿Qué tan probable es que nos recomiendes? 0–10 (obligatorio):">
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {Array.from({ length: 11 }, (_, i) => i).map(v => <NpsBtn key={v} v={v} />)}
         </div>
+        {(nps === null) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona un valor de 0 a 10.</p>}
       </Section>
 
-      <Section title="Motivo principal (opcional):">
+      <Section title="Motivo principal (obligatorio):">
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {TAGS.map(t => (
             <Chip
               key={t}
               active={tags.includes(t)}
-              onClick={() => setTags(s => s.includes(t) ? s.filter(x=>x!==t) : [...s, t])}
+              onClick={() =>
+                setTags(s => s.includes(t) ? s.filter(x=>x!==t) : [...s, t])
+              }
             >
               {t}
             </Chip>
           ))}
         </div>
+        {tags.length < 1 && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona al menos un motivo.</p>}
       </Section>
 
-      <Section title="Tiempo de espera (opcional)">
+      <Section title="Tiempo de espera (obligatorio):">
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {WAIT.map(opt => (
             <Chip key={opt} active={waitTime===opt} onClick={() => setWaitTime(opt)}>{opt}</Chip>
           ))}
         </div>
+        {!WAIT.includes(waitTime) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona una opción.</p>}
       </Section>
 
-      <Section title="Tipo de trámite (opcional)">
+      <Section title="Tipo de trámite (obligatorio):">
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {TRAMITE.map(opt => (
             <Chip key={opt} active={tramite===opt} onClick={() => setTramite(opt)}>{opt}</Chip>
           ))}
         </div>
+        {!TRAMITE.includes(tramite) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona una opción.</p>}
       </Section>
 
-      <Section title="¿Se resolvió tu trámite hoy? (opcional)">
+      <Section title="¿Se resolvió tu trámite hoy? (obligatorio):">
         <div style={{ display:'flex', gap:8 }}>
           <Chip active={resolved===true}  onClick={() => setResolved(true)}>Sí</Chip>
           <Chip active={resolved===false} onClick={() => setResolved(false)}>No</Chip>
         </div>
+        {typeof resolved !== 'boolean' && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona Sí o No.</p>}
       </Section>
 
-      <Section title="¿Quién te atendió? (opcional)">
+      <Section title="¿Quién te atendió? (obligatorio):">
         <input
           ref={staffRef}
           type="text"
@@ -218,9 +239,10 @@ export default function FeedbackClient() {
           autoComplete="organization-title"
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
+        {!staffOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Escribe el nombre del asesor.</p>}
       </Section>
 
-      <Section title="Tus datos (opcional)">
+      <Section title="Tus datos (obligatorio):">
         <div style={{ display:'grid', gap:10 }}>
           <input
             ref={nameRef}
@@ -230,6 +252,8 @@ export default function FeedbackClient() {
             autoComplete="name"
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
+          {!nameOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Escribe tu nombre.</p>}
+
           <input
             ref={phoneRef}
             type="tel"
@@ -240,26 +264,11 @@ export default function FeedbackClient() {
             pattern="[0-9+ ]*"
             style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
           />
+          {!phoneOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Escribe un celular válido.</p>}
         </div>
       </Section>
 
-      <Section title="¿Deseas que te contactemos?">
-        <label style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <input
-            type="checkbox"
-            checked={wantFollow}
-            onChange={e => setWantFollow(e.target.checked)}
-          />
-          <span>Sí, deseo seguimiento</span>
-        </label>
-        {wantFollow && (phoneRef.current?.value?.trim()?.length ?? 0) < 5 && (
-          <p style={{ marginTop:8, color:'#b45309', fontSize:12 }}>
-            Deja tu celular para poder contactarte.
-          </p>
-        )}
-      </Section>
-
-      <Section title="Cuéntanos (opcional):">
+      <Section title="Cuéntanos (obligatorio):">
         <textarea
           ref={commentRef}
           rows={4}
@@ -267,6 +276,7 @@ export default function FeedbackClient() {
           placeholder="¿Qué estuvo excelente o qué mejorar?"
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
+        {!commentOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Cuéntanos tu experiencia.</p>}
       </Section>
 
       <button
@@ -274,14 +284,14 @@ export default function FeedbackClient() {
         onClick={submit}
         style={{
           marginTop:22, width:'100%', padding:14, borderRadius:12, border:'1px solid #0b6b8e',
-          background: canSubmit ? '#0ea5e9' : '#9ccfea', color:'#001', fontWeight:800
+          background: canSubmit ? '#0ea5e9' : '#9ccfea', color: '#001', fontWeight: 800
         }}
       >
         {loading ? 'Enviando…' : 'Enviar'}
       </button>
 
       <p style={{ marginTop:12, fontSize:12, color:'#888' }}>
-        build: feedback-extended — {buildStampRef.current}
+        build: feedback-required — {buildStampRef.current}
       </p>
 
       {ok === true  && <p style={{ color:'#15803d', marginTop:8 }}>¡Gracias! Recibimos tu review.</p>}
@@ -289,3 +299,4 @@ export default function FeedbackClient() {
     </main>
   );
 }
+
