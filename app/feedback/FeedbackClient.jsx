@@ -1,7 +1,7 @@
 const buildStampRef = useRef(new Date().toISOString()); // estable en toda la sesión
 
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const TAGS = ['espera','pago','precio','atención','garantía','disponibilidad','otro'];
 const WAIT = ['< 5 min','5–10 min','10–20 min','> 20 min'];
@@ -99,6 +99,23 @@ export default function FeedbackClient() {
     </button>
   );
 
+  const buildStampRef = useRef(new Date().toISOString());
+  const textareaRef = useRef(null);
+
+  const onCommentChange = (e) => {
+    const el = e.target;
+    const next = el.value;
+    const pos = el.selectionStart;      // guarda posición del cursor
+    setComment(next);
+    requestAnimationFrame(() => {       // restaura posición tras el re-render
+      if (textareaRef.current) {
+        textareaRef.current.setSelectionRange(pos, pos);
+        textareaRef.current.focus();
+      }
+    });
+  };
+
+
   return (
     <main style={{ maxWidth: 720, margin: '0 auto', padding: 20 }}>
       <h1 style={{ fontSize: 28, fontWeight: 800, margin: 0 }}>¿Cómo te fue hoy?</h1>
@@ -145,8 +162,13 @@ export default function FeedbackClient() {
       </Section>
 
       <Section title="¿Quién te atendió? (opcional)">
-        <input value={staff} onChange={e=>setStaff(e.target.value)} placeholder="Nombre del asesor"
-               style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}/>
+        <input
+          ref={staffRef}
+          value={staff}
+          onChange={onStaffChange}
+          placeholder="Nombre del asesor"
+          style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
+        />
       </Section>
 
       <Section title="¿Deseas que te contactemos?">
@@ -161,9 +183,15 @@ export default function FeedbackClient() {
       </Section>
 
       <Section title="Cuéntanos (opcional):">
-        <textarea rows={4} value={comment} onChange={e=>setComment(e.target.value)}
-                  placeholder="¿Qué estuvo excelente o qué mejorar?"
-                  style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}/>
+      <textarea
+      ref={textareaRef}
+      rows={4}
+      value={comment}
+      onChange={onCommentChange}
+      placeholder="¿Qué estuvo excelente o qué mejorar?"
+      style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
+      />
+
       </Section>
 
       <button disabled={!canSubmit || loading} onClick={submit}
@@ -173,7 +201,7 @@ export default function FeedbackClient() {
       </button>
 
       <p style={{ marginTop:12, fontSize:12, color:'#888' }}>
-        build: feedback-extended — {new Date().toISOString()}
+  build: feedback-extended — {buildStampRef.current}
       </p>
       {ok === true  && <p style={{ color:'#15803d', marginTop:8 }}>¡Gracias! Recibimos tu review.</p>}
       {ok === false && <p style={{ color:'#dc2626', marginTop:8 }}>Ups, intenta de nuevo.</p>}
