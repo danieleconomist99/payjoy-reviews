@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-
-export const config = { matcher: ['/form'] };
-
+export const config = { matcher: ['/form', '/form/:path*'] };
 export function middleware(req) {
   const url = req.nextUrl.clone();
-  url.pathname = '/feedback';      // conserva automáticamente los query params
+  url.pathname = '/feedback';     // conserva ?store=...
   return NextResponse.redirect(url);
 }
+
