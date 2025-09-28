@@ -177,14 +177,12 @@ export default function FeedbackClient() {
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {[1,2,3,4,5].map(n => <Star key={n} n={n} />)}
         </div>
-        {!(rating >= 1) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona una calificación.</p>}
       </Section>
 
       <Section title="¿Qué tan probable es que nos recomiendes? 0–10 (obligatorio):">
         <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {Array.from({ length: 11 }, (_, i) => i).map(v => <NpsBtn key={v} v={v} />)}
         </div>
-        {(nps === null) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona un valor de 0 a 10.</p>}
       </Section>
 
       <Section title="Motivo principal (obligatorio):">
@@ -201,7 +199,6 @@ export default function FeedbackClient() {
             </Chip>
           ))}
         </div>
-        {tags.length < 1 && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona al menos un motivo.</p>}
       </Section>
 
       <Section title="Tiempo de espera (obligatorio):">
@@ -210,7 +207,6 @@ export default function FeedbackClient() {
             <Chip key={opt} active={waitTime===opt} onClick={() => setWaitTime(opt)}>{opt}</Chip>
           ))}
         </div>
-        {!WAIT.includes(waitTime) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona una opción.</p>}
       </Section>
 
       <Section title="Tipo de trámite (obligatorio):">
@@ -219,7 +215,6 @@ export default function FeedbackClient() {
             <Chip key={opt} active={tramite===opt} onClick={() => setTramite(opt)}>{opt}</Chip>
           ))}
         </div>
-        {!TRAMITE.includes(tramite) && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona una opción.</p>}
       </Section>
 
       <Section title="¿Se resolvió tu trámite hoy? (obligatorio):">
@@ -227,7 +222,6 @@ export default function FeedbackClient() {
           <Chip active={resolved===true}  onClick={() => setResolved(true)}>Sí</Chip>
           <Chip active={resolved===false} onClick={() => setResolved(false)}>No</Chip>
         </div>
-        {typeof resolved !== 'boolean' && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Selecciona Sí o No.</p>}
       </Section>
 
       <Section title="¿Quién te atendió? (obligatorio):">
@@ -239,7 +233,6 @@ export default function FeedbackClient() {
           autoComplete="organization-title"
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
-        {!staffOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Escribe el nombre del asesor.</p>}
       </Section>
 
       <Section title="Tus datos (obligatorio):">
@@ -276,7 +269,6 @@ export default function FeedbackClient() {
           placeholder="¿Qué estuvo excelente o qué mejorar?"
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
-        {!commentOk() && <p style={{color:'#b45309',fontSize:12,marginTop:6}}>Cuéntanos tu experiencia.</p>}
       </Section>
 
       <button
