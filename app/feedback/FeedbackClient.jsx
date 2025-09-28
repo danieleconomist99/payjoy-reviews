@@ -273,17 +273,20 @@ export default function FeedbackClient() {
           style={{ width:'100%', padding:12, borderRadius:10, border:'1px solid #d1d5db' }}
         />
       </Section>
-
       <button
+        type="button"                 // ← evita comportamiento de <form>
+        onClick={submit}              // ← dispara el handler
         disabled={!canSubmit || loading}
-        onClick={submit}
+        aria-busy={loading ? 'true' : 'false'}
         style={{
           marginTop:22, width:'100%', padding:14, borderRadius:12, border:'1px solid #0b6b8e',
-          background: canSubmit ? '#0ea5e9' : '#9ccfea', color: '#001', fontWeight: 800
+          background: (!canSubmit || loading) ? '#9ccfea' : '#0ea5e9',
+          color:'#001', fontWeight:800, cursor: (!canSubmit || loading) ? 'not-allowed' : 'pointer'
         }}
       >
         {loading ? 'Enviando…' : 'Enviar'}
       </button>
+
 
       <p style={{ marginTop:12, fontSize:12, color:'#888' }}>
         build: feedback-required — {buildStampRef.current}
