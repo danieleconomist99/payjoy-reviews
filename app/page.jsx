@@ -9,6 +9,8 @@ export default function Home() {
       <p>
         Ir al formulario:{' '}
         <a href="/feedback?store=CEN">/feedback?store=CEN</a>
+        <a href="/feedback?store=NOR">/feedback?store=CEN</a>
+        <a href="/feedback?store=SUR">/feedback?store=CEN</a>
       </p>
     </main>
   );
